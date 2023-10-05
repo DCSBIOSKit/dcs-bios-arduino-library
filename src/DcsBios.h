@@ -43,7 +43,10 @@ do not come with their own build system, we are just putting everything into the
 	#include "internal/DcsBiosNgRS485Master.h"
 	#include "internal/DcsBiosNgRS485Master.cpp.inc"
 #endif
-#ifdef DCSBIOS_RS485_SLAVE
+#if defined(DCSBIOS_RS485_SLAVE) && defined(DCSBIOS_FOR_STM32DUINO)
+	#include "internal/DcsBiosSTM32RS485Slave.h"
+	#include "internal/DcsBiosSTM32RS485Slave.cpp.inc"
+#elif defined(DCSBIOS_RS485_SLAVE)
 	#include "internal/DcsBiosNgRS485Slave.h"
 	#include "internal/DcsBiosNgRS485Slave.cpp.inc"
 #endif
