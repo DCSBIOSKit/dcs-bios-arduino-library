@@ -7,6 +7,27 @@
 
 namespace DcsBios {
     ProtocolParser parser;
+	DcsBios::RingBuffer<32> messageBuffer;
+
+	bool tryToSendDcsBiosMessage(const char* msg, const char* arg) {
+		if (messageBuffer.complete) return false; // buffer occupied
+		
+		messageBuffer.clear();
+		const char* c = msg;
+		while (*c) {
+			messageBuffer.put(*c++);
+		}
+		messageBuffer.put(' ');
+		c = arg;
+		while (*c) {
+			messageBuffer.put(*c++);
+		}
+		messageBuffer.put('\n');
+		
+		messageBuffer.complete = true;
+		DcsBios::PollingInput::setMessageSentOrQueued();
+		return true;
+	}
 
     class RS485Slave {
     public:
