@@ -1,7 +1,9 @@
 #if defined(DCSBIOS_RS485_SLAVE) && defined(DCSBIOS_FOR_STM32DUINO)
 
 namespace DcsBios {
-    RS485Slave::RS485Slave() : serial(DCSBIOS_RS485_SERIAL), txen_pin(TXENABLE_PIN) { }
+    RS485Slave::RS485Slave() : serial(DCSBIOS_RS485_SERIAL), txen_pin(TXENABLE_PIN) {
+        state = UNINITIALIZED;
+    }
 
     RS485Slave rs485slave;
 
@@ -14,11 +16,14 @@ namespace DcsBios {
             parser.processChar(rs485slave.serial.read()); // TODO: Handle RS485 messages.
         }
         PollingInput::pollInputs();
-        ExportStreamListener::loopAll();			
+        ExportStreamListener::loopAll();
     }
     
     /* TODO: This is a work-in-progress.
-    
+
+    Things to try to fix the issue as a whole:
+    Moved to Notes "DCS-BIOS RS485 Issues Ideas".
+
     Here is a brief overview of the DCS-BIOS RS485 protocol extracted from the DcsBiosNgRS485Slave.cpp.inc:
 
     Main switch() in rxISR for receiving messages from the master:

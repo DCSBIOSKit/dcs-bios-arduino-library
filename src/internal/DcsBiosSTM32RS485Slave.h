@@ -11,7 +11,40 @@ namespace DcsBios {
     class RS485Slave {
     public:
         HardwareSerial serial;
-        volatile int txen_pin;
+        int txen_pin;
+
+        unsigned int last_rx_time;
+        uint8_t rx_slave_address;
+		uint8_t rx_msgtype;
+        uint8_t rxtx_len;
+
+        enum RxDataType {
+			RXDATA_IGNORE,
+			RXDATA_DCSBIOS_EXPORT
+		};
+        RxDataType rx_datatype;
+		
+        enum State {
+			UNINITIALIZED,
+			SYNC, // wait for 500 us of no traffic
+			RX_WAIT_ADDRESS,
+			RX_WAIT_MSGTYPE,
+			RX_WAIT_DATALENGTH,
+			RX_WAIT_DATA,
+			RX_WAIT_CHECKSUM,
+			RX_HOST_MESSAGE_COMPLETE,
+			RX_WAIT_ANSWER_DATALENGTH,
+			RX_WAIT_ANSWER_MSGTYPE,
+			RX_WAIT_ANSWER_DATA,
+			RX_WAIT_ANSWER_CHECKSUM,
+			TX_SEND_ZERO_DATALENGTH,
+			TX_ZERO_DATALENGTH_SENT,
+			TX_SEND_DATALENGTH,
+			TX_DATALENGTH_SENT,
+			TX,
+			TX_CHECKSUM_SENT
+		};
+        State state;
 
         RS485Slave();
     };
