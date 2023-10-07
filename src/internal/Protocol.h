@@ -28,6 +28,7 @@ namespace DcsBios {
 		public:
 			void processChar(unsigned char c);
 			void processCharISR(unsigned char c);
+			uint8_t availableBufferSpace();
 			ProtocolParser();
 	};
 }

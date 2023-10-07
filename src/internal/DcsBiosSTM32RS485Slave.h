@@ -30,9 +30,23 @@ namespace DcsBios {
 	}
 
     class RS485Slave {
-    public:
-        HardwareSerial serial;
-        int txen_pin;
+	private:
+		serial_t _serial;
+		unsigned char _rx_buffer[SERIAL_RX_BUFFER_SIZE];
+    	unsigned char _tx_buffer[SERIAL_TX_BUFFER_SIZE];
+
+		static void _rx_complete_irq(serial_t *obj);
+		static int _tx_complete_irq(serial_t *obj);
+		int availableForWrite(void);
+		size_t write(const uint8_t *buffer, size_t size);
+		size_t write(uint8_t c);
+
+		void set_txen();
+		void clear_txen();
+		void tx_delay_byte();
+		void tx_byte(uint8_t c);
+    public:	
+		int txen_pin;
 
         unsigned int last_rx_time;
         uint8_t rx_slave_address;
@@ -68,6 +82,8 @@ namespace DcsBios {
         State state;
 
         RS485Slave();
+
+		void begin();
     };
 }
 
