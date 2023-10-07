@@ -85,7 +85,7 @@ namespace DcsBios {
 			case RX_WAIT_DATALENGTH:
 				rxtx_len = c;
 
-				if (rxtx_len > parser.incomingDataBuffer.availableForWrite()) {
+				if (rxtx_len > parser.availableBufferSpace()) {
 					last_rx_time = micros();
 					state = SYNC;
 				}
