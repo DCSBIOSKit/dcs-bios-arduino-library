@@ -125,11 +125,6 @@ namespace DcsBios {
                 case RX_WAIT_DATALENGTH:
                     rs485slave.rxtx_len = c;
 
-                    if (rs485slave.rxtx_len > parser.availableBufferSpace()) {
-                        rs485slave.last_rx_time = micros();
-                        rs485slave.state = SYNC;
-                    }
-                    
                     if (rs485slave.rxtx_len == 0) {
                         rs485slave.state = RX_HOST_MESSAGE_COMPLETE;
                         break;
@@ -141,7 +136,14 @@ namespace DcsBios {
                         rs485slave.rx_datatype = RXDATA_IGNORE;
                     }
                     
-                    rs485slave.state = RX_WAIT_DATA;
+                    /* Check if there is space in incomingDataBuffer before comitting to receive,
+                        otherwise we may overwrite data already being processed. */
+                    if (rs485slave.rxtx_len > parser.availableBufferSpace()) {
+                        rs485slave.last_rx_time = micros();
+                        rs485slave.state = SYNC;
+                    } else {
+                        rs485slave.state = RX_WAIT_DATA;
+                    }
                 break;
                 
                 case RX_WAIT_DATA:
