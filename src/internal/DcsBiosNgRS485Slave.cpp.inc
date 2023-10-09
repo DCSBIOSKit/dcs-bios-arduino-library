@@ -13,55 +13,84 @@ namespace DcsBios {
 		txen_pin_mask = digitalPinToBitMask(txen_pin);
 		state = UNINITIALIZED;
 	}
-	
-	void RS485Slave::udreISR() {
-		switch (state) {
-			case TX_DATALENGTH_SENT:
-				tx_byte(0); // MSGTYPE
-				state = TX;
-			break;
-			
-			case TX:
-				if (rxtx_len == 0) {
-					tx_byte(0x72); // TODO: transmit actual checksum
-					state = TX_CHECKSUM_SENT;
-					clear_udrie();
-				} else {
-					rxtx_len--;
-					tx_byte(messageBuffer.get());
-				}
-			break;
+
+	// WARNING: Does not set txen, this is intended to be called from send_message() only!
+	void RS485Slave::tx_str(const char *str) {
+		const char* c = str;
+
+		while (*c) {
+			while(!(UCSR0A & (1<<UDRE0))); // wait until TX buffer is empty
+			UDR0 = *c++; // write byte to TX buffer
 		}
 	}
-	
-	void RS485Slave::txcISR() {
+
+	// WARNING: Does not set txen, this is intended to be called from send_message() only!
+	void RS485Slave::tx_delay_byte() {
+		tx_byte(0);
+	}
+
+	// WARNING: Does not set txen, this is intended to be called from send_message() only!
+	void RS485Slave::tx_byte(uint8_t c) {
+		while(!(UCSR0A & (1<<UDRE0))); // wait until TX buffer is empty
+		UDR0 = c; // write byte to TX buffer
+	}
+
+	void RS485Slave::send_message() {
+		set_txen();
+
+		rxtx_len = messageBuffer.getLength();
+
+		// Send delay byte, purpose unclear.
+		tx_delay_byte();
+		// state = TX_SEND_DATALENGTH;
+
+		// Send data length
+		tx_byte(rxtx_len);
+		// state = TX_DATALENGTH_SENT;
+
+		// Send message type
+		tx_byte(0);
+		// state = TX;
+
+		while (rxtx_len > 0) {
+			rxtx_len--;
+			tx_byte(messageBuffer.get());
+		}
+
+		// Send "checksum"
+		tx_byte(0x72);
+		// state = TX_CHECKSUM_SENT;
+
+		// Wait for checksum transmission to complete
+		while(!(UCSR0A & (1<<UDRE0)));
+
 		clear_txen();
-		switch(state) {
-			case TX_SEND_ZERO_DATALENGTH:
-				tx_byte(0);
-				state = TX_ZERO_DATALENGTH_SENT;
-			break;
-			
-			case TX_SEND_DATALENGTH:
-				tx_byte(rxtx_len);
-				state = TX_DATALENGTH_SENT;
-				set_udrie();
-			break;
-			
-			case TX_ZERO_DATALENGTH_SENT:
-				state = RX_WAIT_ADDRESS;
-			break;
-			
-			case TX_CHECKSUM_SENT:
-				state = RX_WAIT_ADDRESS;
-				messageBuffer.clear();
-				messageBuffer.complete = false;
-			break;
-		}
+
+		// state = RX_WAIT_ADDRESS;
+		messageBuffer.clear();
+		messageBuffer.complete = false;
 	}
-	
+
+	void RS485Slave::send_empty_message() {
+		set_txen();
+
+		tx_delay_byte();
+		state = TX_SEND_ZERO_DATALENGTH;
+
+		tx_byte(0);
+		state = TX_ZERO_DATALENGTH_SENT;
+
+		// Wait for data length transmission to complete
+		while(!(UCSR0A & (1<<UDRE0)));
+
+		clear_txen();
+
+		state = RX_WAIT_ADDRESS;
+	}
+
 	void RS485Slave::rxISR() {
 		volatile uint8_t c = *udr;
+
 		switch(state) {
 			case UNINITIALIZED:
 				last_rx_time = micros();
@@ -107,7 +136,9 @@ namespace DcsBios {
 			case RX_WAIT_DATA:
 				rxtx_len--;
 				if (rx_datatype == RXDATA_DCSBIOS_EXPORT) {
-					parser.processCharISR(c);
+					if (rxtx_len <= parser.availableBufferSpace()) {
+						parser.processCharISR(c);
+					}
 				}
 				if (rxtx_len == 0) {
 					state = RX_WAIT_CHECKSUM;
@@ -156,13 +187,10 @@ namespace DcsBios {
 					// we have just been polled for DCS-BIOS import data...
 					if (!messageBuffer.complete) {
 						// ...but we have nothing to say
-						tx_delay_byte();
-						state = TX_SEND_ZERO_DATALENGTH;
+						send_empty_message();
 					} else {
 						// ...and we have something to transmit
-						rxtx_len = messageBuffer.getLength();
-						tx_delay_byte();
-						state = TX_SEND_DATALENGTH;
+						send_message();
 					}
 				} else {
 					// we have been sent a message that we did not expect
@@ -222,8 +250,6 @@ namespace DcsBios {
 #else	
 	RS485Slave rs485slave(&UDR0, &UCSR0A, &UCSR0B, &UCSR0C, TXENABLE_PIN);	
 	ISR(USART0_RX_vect) { rs485slave.rxISR(); }
-	ISR(USART0_TX_vect) { rs485slave.txcISR(); }
-	ISR(USART0_UDRE_vect) { rs485slave.udreISR(); }
 	
 	void setup() {
 		PRR0 &= ~(1<<PRUSART0);
@@ -232,7 +258,7 @@ namespace DcsBios {
 		UCSR0A = 0;
 		UCSR0C = (1<<UCSZ00) | (1<<UCSZ01);
 		pinMode(TXENABLE_PIN, OUTPUT);
-		//UCSR0B = (1<<RXEN0) | (1<<TXEN0) | (1<<RXCIE0) | (1<<TXCIE0);
+
 		rs485slave.clear_txen();
 	}
 #endif
@@ -240,6 +266,10 @@ namespace DcsBios {
 	void loop() {
 		PollingInput::pollInputs();
 		ExportStreamListener::loopAll();
+
+		if (!parser.incomingDataBuffer.isEmpty()) {
+			parser.processChar(parser.incomingDataBuffer.get());
+		}
 	}
 }
 #endif
