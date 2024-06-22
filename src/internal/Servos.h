@@ -3,7 +3,16 @@
 
 #include "Arduino.h"
 #include "ExportStreamListener.h"
+
+#ifdef ESP32
+	#if __has_include(<ESP32Servo.h>)
+		#include <ESP32Servo.h>
+	#else
+    	#error "ESP32Servo.h not found. Please install the ESP32Servo library from madhephaestus/ESP32Servo."
+  #endif
+#else
 #include <Servo.h>
+#endif
 
 namespace DcsBios {
 	class ServoOutput : public Int16Buffer {
