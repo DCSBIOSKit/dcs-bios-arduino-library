@@ -4,13 +4,18 @@ namespace DcsBios {
 #ifdef DCSBIOS_FOR_STM32
 	RS485Slave::RS485Slave(usart_dev *usart, uint32_t txen_pin) :
 	udr(&usart->regs->DR), usart_sr(&usart->regs->SR), usart_cr1(&usart->regs->CR1), usart_cr2(&usart->regs->CR2), usart_cr3(&usart->regs->CR3), usart_brr(&usart->regs->BRR)
+#elif defined(ESP32)
+	RS485Slave::RS485Slave(uint8_t uart_num, uint8_t txen_pin, uint8_t tx_pin, uint8_t rx_pin) : dcsBiosSerial(uart_num), uart_num(uart_num), txen_pin(txen_pin), tx_pin(tx_pin), rx_pin(rx_pin)
 #else
 	RS485Slave::RS485Slave(volatile uint8_t *udr, volatile uint8_t *ucsra, volatile uint8_t *ucsrb, volatile uint8_t *ucsrc, uint8_t txen_pin) :
 	udr(udr), ucsra(ucsra), ucsrb(ucsrb), ucsrc(ucsrc)
 #endif
 	{
+		#ifndef ESP32
 		txen_port = portOutputRegister(digitalPinToPort(txen_pin));
 		txen_pin_mask = digitalPinToBitMask(txen_pin);
+		#endif
+
 		state = UNINITIALIZED;
 	}
 	
@@ -60,8 +65,18 @@ namespace DcsBios {
 		}
 	}
 	
+	#ifdef ESP32
+	void RS485Slave::onReceive(void) {
+		while (dcsBiosSerial.available()) {
+			rxISR(dcsBiosSerial.read());
+		}
+	}
+
+	void RS485Slave::rxISR(uint8_t c) {
+	#else
 	void RS485Slave::rxISR() {
 		volatile uint8_t c = *udr;
+	#endif
 		switch(state) {
 			case UNINITIALIZED:
 				last_rx_time = micros();
@@ -182,7 +197,7 @@ namespace DcsBios {
 		
 	}
 
-	#ifdef DCSBIOS_FOR_STM32
+#ifdef DCSBIOS_FOR_STM32
 	void RS485Slave::UsartIRQ()	{
 		if((*usart_sr & (1<<USART_SR_TXE_BIT)) && udrie_set)
 		{
@@ -224,7 +239,19 @@ namespace DcsBios {
 		nvic_irq_enable(NVIC_USART1);
 		rs485slave.clear_txen();
 	}
-#else	
+#elif defined(ESP32)
+	RS485Slave rs485slave(DCSBIOS_RS485_UART, TXENABLE_PIN, DCSBIOS_RS485_TX_PIN, DCSBIOS_RS485_RX_PIN);
+
+	void setup() {
+		pinMode(rs485slave.txen_pin, OUTPUT);
+		rs485slave.dcsBiosSerial.begin(250000);
+		rs485slave.dcsBiosSerial.setPins(rs485slave.rx_pin, rs485slave.tx_pin, UART_PIN_NO_CHANGE, rs485slave.txen_pin);
+		rs485slave.dcsBiosSerial.setHwFlowCtrlMode(UART_HW_FLOWCTRL_DISABLE);
+		rs485slave.dcsBiosSerial.setMode(UART_MODE_RS485_HALF_DUPLEX);
+		rs485slave.dcsBiosSerial.setRxFIFOFull(1);
+		rs485slave.dcsBiosSerial.onReceive([&]() { rs485slave.onReceive(); });
+	};
+#else
 	RS485Slave rs485slave(&UDR0, &UCSR0A, &UCSR0B, &UCSR0C, TXENABLE_PIN);	
 	ISR(USART0_RX_vect) { rs485slave.rxISR(); }
 	ISR(USART0_TX_vect) { rs485slave.txcISR(); }
@@ -245,6 +272,14 @@ namespace DcsBios {
 	void loop() {
 		PollingInput::pollInputs();
 		ExportStreamListener::loopAll();
+
+		#ifdef ESP32 // Call udreISR & txcISR manually as a stopgap solution on ESP32 as these interrupts are not exposed by the ESP32 Arduino Framework.
+		if (/*!messageBuffer.isEmpty() &&*/
+			rs485slave.dcsBiosSerial.availableForWrite() > 0) {
+			rs485slave.udreISR();
+			rs485slave.txcISR();
+		}
+		#endif
 
 		// Process incoming data outside of ISR
 		#ifdef DCSBIOS_DEFER_RS485_PROCESSING
