@@ -67,6 +67,10 @@ namespace DcsBios {
 	
 	#ifdef ESP32
 	void RS485Slave::onReceive(void) {
+		USBSerial.print("onReceive called with ");
+		USBSerial.print(dcsBiosSerial.available());
+		USBSerial.println(" bytes available...");
+
 		while (dcsBiosSerial.available()) {
 			rxISR(dcsBiosSerial.read());
 		}
@@ -242,7 +246,14 @@ namespace DcsBios {
 #elif defined(ESP32)
 	RS485Slave rs485slave(DCSBIOS_RS485_UART, TXENABLE_PIN, DCSBIOS_RS485_TX_PIN, DCSBIOS_RS485_RX_PIN);
 
+	void onTransmitComplete(void *arg) {
+		USBSerial.println("onTransmitComplete called...");
+	}
+
 	void setup() {
+		USBSerial.begin(250000);
+		USBSerial.println("Configuring RS485Slave...");
+
 		pinMode(rs485slave.txen_pin, OUTPUT);
 		rs485slave.dcsBiosSerial.begin(250000);
 		rs485slave.dcsBiosSerial.setPins(rs485slave.rx_pin, rs485slave.tx_pin, UART_PIN_NO_CHANGE, rs485slave.txen_pin);
@@ -250,6 +261,9 @@ namespace DcsBios {
 		rs485slave.dcsBiosSerial.setMode(UART_MODE_RS485_HALF_DUPLEX);
 		rs485slave.dcsBiosSerial.setRxFIFOFull(1);
 		rs485slave.dcsBiosSerial.onReceive([&]() { rs485slave.onReceive(); });
+		rs485slave.dcsBiosSerial.onTransmitComplete(onTransmitComplete);
+
+		USBSerial.println("RS485Slave Ready!");
 	};
 #else
 	RS485Slave rs485slave(&UDR0, &UCSR0A, &UCSR0B, &UCSR0C, TXENABLE_PIN);	

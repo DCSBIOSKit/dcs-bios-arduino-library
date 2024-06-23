@@ -62,6 +62,8 @@ namespace DcsBios {
 		uint8_t txen_pin;
 		uint8_t tx_pin;
 		uint8_t rx_pin;
+
+		void onTransmitComplete(void *arg);
 #else
 		volatile uint8_t *udr;
 		volatile uint8_t *ucsra;
