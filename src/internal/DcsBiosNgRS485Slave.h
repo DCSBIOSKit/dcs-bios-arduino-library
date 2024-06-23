@@ -144,12 +144,8 @@ namespace DcsBios {
 			dcsBiosSerial.write(c);
 		}
 		inline void tx_delay_byte() { tx_byte(0); }
-		inline void set_udrie() {
-			#warning "Not implemented"
-		}
-		inline void clear_udrie() {
-			#warning "Not implemented"
-		}
+		inline void set_udrie() { /* Noop, udreISR() is called from loop() manually for now */ }
+		inline void clear_udrie() { /* Noop, udreISR() is called from loop() manually for now */ }
 
 		RS485Slave(uint8_t uart_num, uint8_t txen_pin, uint8_t tx_pin, uint8_t rx_pin);
 #else
