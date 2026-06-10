@@ -98,7 +98,7 @@ namespace DcsBios {
 				} else {
 					state = RX_WAIT_ADDRESS;
 				}
-			// no break statement here, we want it to fall through to the next case!
+				__attribute__((fallthrough)); // the first byte after a quiet period is an address
 			
 			case RX_WAIT_ADDRESS:
 				rx_slave_address = c;
