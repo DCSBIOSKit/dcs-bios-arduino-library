@@ -128,13 +128,23 @@ namespace DcsBios {
 			break;
 			
 			case RX_WAIT_DATA:
+				/*
+					Only enqueue here; the data is parsed from loop(). Running
+					the parser (and with it the output callbacks) inside this
+					ISR allows nested RX interrupts to advance state/rxtx_len
+					underneath us, which shifts the bus framing and corrupts
+					the export stream.
+
+					If the buffer is full, drop the byte and let loop()
+					resynchronize the parser. Bus framing is unaffected, so
+					the slave keeps answering polls while overloaded.
+				*/
 				rxtx_len--;
 				if (rx_datatype == RXDATA_DCSBIOS_EXPORT) {
-					if (rxtx_len <= parser.incomingDataBuffer.availableForWrite()) {
-						parser.processCharISR(c);
+					if (parser.incomingDataBuffer.isFull()) {
+						rx_overflow = true;
 					} else {
-						last_rx_time = micros();
-						state = SYNC;
+						parser.incomingDataBuffer.put(c);
 					}
 				}
 				if (rxtx_len == 0) {
@@ -288,16 +298,34 @@ namespace DcsBios {
 #endif
 
 	void loop() {
+		/*
+			Drain everything received since the last iteration. Stop at an
+			overflow: any byte enqueued after a drop belongs to a torn frame.
+			rxISR() sets rx_overflow before enqueueing the first post-drop
+			byte, so checking it before every get() guarantees the parser
+			never sees data from beyond the gap.
+		*/
+		while (parser.incomingDataBuffer.isNotEmpty()) {
+			if (rs485slave.rx_overflow) break;
+			parser.processChar(parser.incomingDataBuffer.get());
+		}
+
+		if (rs485slave.rx_overflow) {
+			/*
+				Clear the flag first: if the ISR overflows again while we
+				discard, the flag is simply raised again and the recovery
+				re-runs on the next iteration. Discarding via get() keeps
+				this safe against a concurrent put() without locking.
+			*/
+			rs485slave.rx_overflow = false;
+			while (parser.incomingDataBuffer.isNotEmpty()) {
+				parser.incomingDataBuffer.get();
+			}
+			parser.reset();
+		}
+
 		PollingInput::pollInputs();
 		ExportStreamListener::loopAll();
-
-		// Process incoming data outside of ISR
-		#ifdef DCSBIOS_DEFER_RS485_PROCESSING
-		if (!parser.incomingDataBuffer.isEmpty()) {
-			unsigned char nextByte = parser.incomingDataBuffer.get();
-			parser.processChar(nextByte);
-		}
-		#endif
 
 		/* Simulate TX interrupts for ESP32 as those are not exposed by HardwareSerial
 			At the moment, this is called on every loop() and the ESP32 should be able to handle that,

@@ -11,6 +11,7 @@ namespace DcsBios {
 		RingBuffer() : writepos(0), readpos(0) {}
 		volatile bool complete = false;
 		__attribute__((always_inline)) void put(uint8_t c) { buffer[writepos] = c; writepos = ++writepos % SIZE; }
+		__attribute__((always_inline)) bool isFull() { return getLength() == SIZE - 1; }
 		__attribute__((always_inline)) bool isEmpty() { return readpos == writepos; }
 		__attribute__((always_inline)) bool isNotEmpty() { return readpos != writepos; }
 		__attribute__((always_inline)) uint8_t get() { uint8_t ret = buffer[readpos]; readpos = ++readpos % SIZE; return ret; }

@@ -1,5 +1,5 @@
 #ifndef _DCSBIOS_RS485_SLAVE_H_
-#define DCSBIOS_RS485_SLAVE_H_
+#define _DCSBIOS_RS485_SLAVE_H_
 #ifdef DCSBIOS_RS485_SLAVE
 
 #include "Arduino.h"
@@ -67,9 +67,17 @@ namespace DcsBios {
 		volatile uint8_t checksum;
 		
 		volatile uint8_t state;
-		volatile unsigned int last_rx_time;
+		volatile unsigned long last_rx_time;
 		volatile uint8_t rx_slave_address;
 		volatile uint8_t rx_msgtype;
+
+		/*
+			Set by rxISR() when export data arrives faster than loop() can
+			process it. loop() reacts by discarding the torn frame and
+			resetting the protocol parser, so a slow sketch skips whole
+			frames cleanly instead of corrupting its outputs.
+		*/
+		volatile bool rx_overflow = false;
 		
 		enum RxDataType {
 			RXDATA_IGNORE,

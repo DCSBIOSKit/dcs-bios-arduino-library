@@ -9,6 +9,16 @@ namespace DcsBios {
 
 	ProtocolParser::ProtocolParser() {
 		processingData = false;
+		reset();
+	}
+
+	/*
+		Discard any partially received write and wait for the next sync
+		sequence. Must be called whenever bytes may have been lost, so that
+		the parser cannot misinterpret the remainder of the stream (which
+		would commit garbage values - e.g. the 0x55 sync bytes - to outputs).
+	*/
+	void ProtocolParser::reset() {
 		state = DCSBIOS_STATE_WAIT_FOR_SYNC;
 		sync_byte_count = 0;
 	}
@@ -21,10 +31,8 @@ namespace DcsBios {
 	void ProtocolParser::processCharISR(unsigned char c) {
 		incomingDataBuffer.put(c);
 
-		// For some reason RS485 slaves cannot process data here, while it works over USB. Perhaps due to the additonal overhead of the RS485 state machine? If DCSBIOS_RS485_SLAVE is defined, the processing is deferred to loop().
-		#ifndef DCSBIOS_DEFER_RS485_PROCESSING
 		if (processingData) return;
-		
+
 		processingData = true;
 		while (1) {
 			if (incomingDataBuffer.isEmpty()) {
@@ -35,7 +43,6 @@ namespace DcsBios {
 			interrupts();
 			processChar(nextByte);
 		}
-		#endif
 	}
 	
 	void ProtocolParser::processChar(unsigned char c) {
