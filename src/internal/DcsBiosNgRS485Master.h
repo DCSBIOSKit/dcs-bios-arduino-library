@@ -10,6 +10,16 @@
 
 #include "RingBuffer.h"
 
+/*
+	Maximum number of export data bytes per broadcast chunk. Must never
+	exceed the slaves' DCSBIOS_INCOMING_DATA_BUFFER_SIZE. Capping the chunk
+	size also bounds how long the bus can be busy with a single broadcast,
+	keeping input polling latency predictable under heavy export traffic.
+*/
+#ifndef DCSBIOS_RS485_MAX_CHUNK_LENGTH
+#define DCSBIOS_RS485_MAX_CHUNK_LENGTH 64
+#endif
+
 #define UART1_TXEN_PORT PORTE
 #define UART1_TXEN_DDR DDRE
 #define UART1_TXEN_PIN 4
@@ -139,7 +149,13 @@ namespace DcsBios {
 		__attribute__((always_inline)) void tx_byte(uint8_t c) { set_txen(); *udr = c; *ucsra |= (1<<TXC0); };
 		__attribute__((always_inline)) void set_udrie() { *ucsrb |= (1<<UDRIE0); }
 		__attribute__((always_inline)) void clear_udrie() { *ucsrb &= ~(1<<UDRIE0); }
-		DcsBios::RingBuffer<128> exportData;
+		/*
+			Export data from the PC waiting to be broadcast. Sized to ride
+			out the bus being busy with polls and timeouts (a single answer
+			timeout is 5 ms = 125 byte times at 250 kbps) while the PC keeps
+			streaming at full line rate.
+		*/
+		DcsBios::RingBuffer<256> exportData;
 		DcsBios::RingBuffer<32> messageBuffer;
 		volatile bool slave_present[128];
 		volatile uint8_t state;

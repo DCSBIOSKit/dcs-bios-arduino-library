@@ -10,10 +10,11 @@ namespace DcsBios {
 		public:
 		RingBuffer() : writepos(0), readpos(0) {}
 		volatile bool complete = false;
-		__attribute__((always_inline)) void put(uint8_t c) { buffer[writepos] = c; writepos = ++writepos % SIZE; }
+		__attribute__((always_inline)) void put(uint8_t c) { buffer[writepos] = c; writepos = (writepos + 1) % SIZE; }
+		__attribute__((always_inline)) bool isFull() { return getLength() == SIZE - 1; }
 		__attribute__((always_inline)) bool isEmpty() { return readpos == writepos; }
 		__attribute__((always_inline)) bool isNotEmpty() { return readpos != writepos; }
-		__attribute__((always_inline)) uint8_t get() { uint8_t ret = buffer[readpos]; readpos = ++readpos % SIZE; return ret; }
+		__attribute__((always_inline)) uint8_t get() { uint8_t ret = buffer[readpos]; readpos = (readpos + 1) % SIZE; return ret; }
 		__attribute__((always_inline)) uint8_t getLength() { return (uint8_t)(writepos - readpos) % SIZE; }
 		__attribute__((always_inline)) void clear() { readpos = 0; writepos = 0; }
 		__attribute__((always_inline)) uint8_t availableForWrite() { return SIZE - getLength() - 1; }

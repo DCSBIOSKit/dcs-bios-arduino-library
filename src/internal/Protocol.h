@@ -9,8 +9,17 @@
 #define DCSBIOS_STATE_DATA_LOW 5
 #define DCSBIOS_STATE_DATA_HIGH 6
 
+/*
+	RS485 slaves buffer export data in the receive interrupt and process it
+	from loop(), so they get a larger default buffer to ride out slow loop()
+	iterations (e.g. display refreshes). Can be overridden from the sketch.
+*/
 #ifndef DCSBIOS_INCOMING_DATA_BUFFER_SIZE
-#define DCSBIOS_INCOMING_DATA_BUFFER_SIZE 64
+	#ifdef DCSBIOS_RS485_SLAVE
+		#define DCSBIOS_INCOMING_DATA_BUFFER_SIZE 128
+	#else
+		#define DCSBIOS_INCOMING_DATA_BUFFER_SIZE 64
+	#endif
 #endif
 
 #include "ExportStreamListener.h"
@@ -33,6 +42,7 @@ namespace DcsBios {
 			
 			void processChar(unsigned char c);
 			void processCharISR(unsigned char c);
+			void reset();
 			ProtocolParser();
 	};
 }

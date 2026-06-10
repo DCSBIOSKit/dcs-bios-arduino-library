@@ -71,6 +71,7 @@
 			if (exportData.isNotEmpty()) {
 				// we have export data to send
 				rxtx_len = exportData.getLength();
+				if (rxtx_len > DCSBIOS_RS485_MAX_CHUNK_LENGTH) rxtx_len = DCSBIOS_RS485_MAX_CHUNK_LENGTH;
 				noInterrupts(); s8();
 				tx_byte(0);
 				state = TX_ADDRESS_SENT;
@@ -284,14 +285,20 @@
 	
 	void __attribute__((always_inline)) inline MasterPCConnection::rxISR() {
 		volatile uint8_t c = *udr;
+		/*
+			If a buffer is full, drop the byte instead of letting put() lap
+			the read pointer, which would scramble old and new data into a
+			continuously corrupted broadcast. A dropped byte leaves a single
+			clean gap that slaves recover from at the next sync sequence.
+		*/
 		#ifdef UART1_TXENABLE_PIN
-		uart1.exportData.put(c);
+		if (!uart1.exportData.isFull()) uart1.exportData.put(c);
 		#endif
 		#ifdef UART2_TXENABLE_PIN
-		uart2.exportData.put(c);
+		if (!uart2.exportData.isFull()) uart2.exportData.put(c);
 		#endif
 		#ifdef UART3_TXENABLE_PIN
-		uart3.exportData.put(c);
+		if (!uart3.exportData.isFull()) uart3.exportData.put(c);
 		#endif
 	}
 	
