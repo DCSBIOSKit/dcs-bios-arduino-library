@@ -1,3 +1,14 @@
+## v0.3.11
+- Fixed RS485 data corruption under load (garbled display data, the sync sequence showing up as "UUUU", slaves dropping off the bus):
+  - Slaves no longer run the protocol parser and output callbacks inside the RX interrupt. The ISR only buffers export data; loop() processes all of it every iteration. This removes an interrupt re-entrancy race in the bus state machine that shifted frame alignment on heavily loaded slaves.
+  - If a slave's loop() is too slow to keep up, it now skips whole frames cleanly (parser is resynchronized at the next sync sequence) instead of committing corrupted values, and it keeps answering polls while overloaded.
+  - The master now caps broadcast chunks at 64 bytes (previously up to 127, which slaves discarded wholesale) and no longer overwrites unsent export data when the PC out-paces the bus.
+  - Fixed bus resynchronization on AVR slaves: the 500us quiet-period detection used a 16-bit timestamp and misfired every 65ms window.
+  - Fixed a duplicate resetAllStates() definition that broke compilation of RS485 slave sketches.
+- DCSBIOS_DEFER_RS485_PROCESSING is obsolete: deferred processing (with a full drain per loop) is now the only and default behavior. Sketches that still define it compile unchanged. The RS485Deferred example was removed.
+- The default DCSBIOS_INCOMING_DATA_BUFFER_SIZE for RS485 slaves is now 128 bytes (still overridable from the sketch).
+- Removed the unmaintained src/internal/UART.Mod variant and the RS485SlaveUART example. They were not wired into the library: DcsBios.h never included UART.Mod, so the example's UART1_SELECT was silently ignored and the sketch actually built against USART0.
+
 ## v0.3.10
 - Updated Addresses.h to the latest version
 - Updated metadata for publishing to Arduino Library Manager and PlatformIO Registry.
